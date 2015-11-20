@@ -96,14 +96,10 @@ RC BTLeafNode::insert(int key, const RecordId& rid)
 		//now copying in the rest...
 		
 		// fix by Junkyum Kim ?
-		if(i+entSize<1024)
-		{
-			memcpy(tmpBuffer+i+entSize, buffer+i, 1024-i-entSize-sizeof(PageId));
-			memcpy(tmpBuffer+(1024-sizeof(PageId)), buffer+(1024-sizeof(PageId)), sizeof(PageId));
-		}
-		memcpy(buffer, tmpBuffer, 1024); //this should fill it
+		if (i + entSize < 1024)
+			memcpy(tmpBuffer+i+entSize ,buffer+i,1024-i-entSize);//this should fill it
 														  //in entirely
-		//memcpy(buffer, tmpBuffer, 1024); //making new buffer
+		memcpy(buffer, tmpBuffer, 1024); //making new buffer
 		//free(tmpBuffer);//making sure the tmpBuffer is gone
 		}
 		
@@ -155,50 +151,46 @@ RC BTLeafNode::insertAndSplit(int key, const RecordId& rid,
 	//cause depending on that we have consider how to balance the split
 	int bufKey;
 	int i;
-	for(i=sizeof(int); (i<totSize); i+=entSize)
+	for(i=(sizeof(RecordId)+sizeof(int)); (i<totSize); i+=entSize)
 	{
-		memcpy(&bufKey, (buffer+i+sizeof(RecordId)), sizeof(int));
+		memcpy(&bufKey, (buffer+i), sizeof(int));
 		if(bufKey==key)//key should no be the same
 			return RC_INVALID_ATTRIBUTE;
 		else if(bufKey>key)
 		{
-			atSecHalf = (i>=(entSize*noninsNKeys+sizeof(int)) ? 1 : 0);
+			atSecHalf = ((i>(getKeyCount()*insNKeys)) ? 1:0);
 			break; //to insure i doesn't get incremented...
 		}
 	}
-	if(i>=totSize)
-		atSecHalf = 1;
 	char* tmpMainBuffer = (char*)malloc(1024);
 	char* tmpSiblingBuffer = (char*)malloc(1024);
 	memset(tmpMainBuffer, 0, 1024); //zeroing it out
 	memset(tmpSiblingBuffer, 0, 1024); //zeroing it out
-	if(atSecHalf==1) //insertion should take place in second half
+	if(atSecHalf) //insertion should take place in second half
 	{
 		//constructing halved buffers without insertion
-		memcpy(tmpMainBuffer+sizeof(int), buffer+sizeof(int), noninsNKeys*entSize);
+		memcpy(tmpMainBuffer, buffer+sizeof(int), noninsNKeys*entSize);
 		memcpy(tmpMainBuffer+totSize,buffer+totSize, sizeof(PageId));
-		memcpy(tmpSiblingBuffer+sizeof(int), buffer+((noninsNKeys*entSize)+sizeof(int)), insNKeys*entSize);
+		memcpy(tmpSiblingBuffer, buffer+((noninsNKeys*entSize)+sizeof(int)), insNKeys*entSize);
 		memcpy(tmpSiblingBuffer+totSize, buffer+totSize, sizeof(PageId));
 		//now insert to correct half
 		sibling.nodecopy(tmpSiblingBuffer);
-		//sibling.insert(key,rid);
+		sibling.insert(key,rid);
 		nodecopy(tmpMainBuffer);
 		upNumKeys(noninsNKeys);
 		sibling.upNumKeys(insNKeys);
-		sibling.insert(key,rid);
 	}
 	else //insertion to take place in first half
 	{
 		//constructing halved buffers without insertion
-		memcpy(tmpMainBuffer+sizeof(int), buffer+sizeof(int), insNKeys*entSize);
+		memcpy(tmpMainBuffer, buffer, insNKeys*entSize);
 		memcpy(tmpMainBuffer+totSize,buffer+totSize, sizeof(PageId));
-		memcpy(tmpSiblingBuffer+sizeof(int), buffer+((insNKeys*entSize)+sizeof(int)), noninsNKeys*entSize);
+		memcpy(tmpSiblingBuffer, buffer+(insNKeys*entSize), noninsNKeys*entSize);
 		memcpy(tmpSiblingBuffer+totSize, buffer+totSize, sizeof(PageId));
 		nodecopy(tmpMainBuffer);
-		//insert(key,rid);
+		insert(key,rid);
 		sibling.nodecopy(tmpSiblingBuffer);
 		upNumKeys(insNKeys);
-		insert(key,rid);
 		sibling.upNumKeys(noninsNKeys);
 	}
 	free(tmpMainBuffer);//making sure the tmpBuffer is gone
@@ -297,18 +289,16 @@ void BTLeafNode::PrintNode()
 	//the size of each entry should be sizeof(RecordId)+sizeof(int)
 	int entSize = sizeof(RecordId)+sizeof(int);
 	//total set of keys this can contain is 1024 - sizeof(pageId)
-	int totSize = 1024-sizeof(PageId);
+	int totSize = 1024-sizeof(PageId) - sizeof(int);
 
 	int i;
-	int j=0;
 	int tmp;
 	RecordId tmpRid;
-	for (i = sizeof(int); i < totSize; i+= entSize)
+	for (i = sizeof(int); i < totSize + entSize; i+= entSize)
 	{	
 		memcpy(&tmpRid,buffer+i,sizeof(RecordId));
 		memcpy(&tmp, buffer+i+sizeof(RecordId),sizeof(int));
-		cout <<"Tuple:"<<j<<", "<< tmpRid.pid <<" " << tmpRid.sid << " " << tmp << endl;
-		j+=1;
+		cout << tmpRid.pid <<" " << tmpRid.sid << " " << tmp << endl;
 	}	}
 
 /*
@@ -335,7 +325,7 @@ PageId BTLeafNode::getNextNodePtr()
  */
 RC BTLeafNode::setNextNodePtr(PageId pid)
 {
-	int totSize = 1024 - sizeof(PageId);
+	int totSize = 1024 - sizeof(PageId) - sizeof(int);
 	memcpy(buffer+totSize, &pid, sizeof(PageId));
 	return 0;
 }
@@ -370,7 +360,6 @@ int BTNonLeafNode::getKeyCount()
 	return cnt;
 }
 
-
 /*
  * Insert a (key, pid) pair to the node.
  * @param key[IN] the key to insert
@@ -393,7 +382,7 @@ RC BTNonLeafNode::insert(int key, PageId pid)
 	//the size of each entry should be sizeof(RecordId)+sizeof(int)
 	int entSize = sizeof(PageId)+sizeof(int);
 	//total set of keys this can contain is 1024 - sizeof(pageId)
-	int totSize = 1024-sizeof(PageId);
+	int totSize = 1024-sizeof(PageId) - sizeof(int);
 	if((getKeyCount()*entSize)>(totSize-entSize))
 	{
 		free(tmpBuffer); //making sure the tmpBuffer is gone
@@ -405,8 +394,10 @@ RC BTNonLeafNode::insert(int key, PageId pid)
 		int fnd = 0;
 		int bufKey;
 		int i;
+		//for(i=sizeof(PageId)+sizeof(int); (i<totSize)&&(!fnd); i+=entSize)
 		for(i=sizeof(int); (i<totSize)&&(!fnd); i+=entSize)
 		{
+			//memcpy(&bufKey, (buffer+i), sizeof(int)); //retrieving key from buffer
 			memcpy(&bufKey, (buffer+i+sizeof(PageId)), sizeof(int)); //retrieving key from buffer
 			if(bufKey>key)
 			{
@@ -414,26 +405,35 @@ RC BTNonLeafNode::insert(int key, PageId pid)
 				break;
 			}
 		}
-		if(fnd==1)
+		
+		if (fnd == 1)
 		{
-			//i is the displacement where we want to insert
-			memcpy(tmpBuffer, buffer, i);
-			memcpy(tmpBuffer+i,&pid,sizeof(PageId));//inserting pid
-			memcpy(tmpBuffer+i+sizeof(PageId),&key,sizeof(int));//then key
-			//now copying in the rest...
-			if(i+entSize<1024)
-			{
-				memcpy(tmpBuffer+i+entSize, buffer+i, 1024-i-entSize-sizeof(PageId));
-				memcpy(tmpBuffer+(1024-sizeof(PageId)), buffer+(1024-sizeof(PageId)), sizeof(PageId));
-			}
-			memcpy(buffer, tmpBuffer, 1024); //making new buffer
-			//free(tmpBuffer);//making sure the tmpBuffer is gone
+		//i is the displacement where we want to insert
+		memcpy(tmpBuffer, buffer, i);
+		//memcpy(tmpBuffer+(i-sizeof(PageId)),&pid,sizeof(PageId));//inserting pid
+		//memcpy(tmpBuffer+i,&key,sizeof(int));//then key
+		memcpy(tmpBuffer+i , &pid, sizeof(PageId));//inserting pid
+		memcpy(tmpBuffer+i + sizeof(PageId),&key,sizeof(int));//then key
+		//now copying in the rest...
+		
+				// fix by Junkyum Kim ?
+		if (i + entSize < 1024)
+			memcpy(tmpBuffer+i+entSize ,buffer+i,1024-i-entSize);//this should fill it
+														  //in entirely
+		memcpy(buffer, tmpBuffer, 1024); //making new buffer
+		//free(tmpBuffer);//making sure the tmpBuffer is gone
 		}
+		//memcpy(tmpBuffer+i+entSize,buffer+i+entSize,1024-(entSize+i));//this should fill it
+														  //in entirely
+		//memcpy(buffer, tmpBuffer, 1024); //making new buffer
+		//free(tmpBuffer);//making sure the tmpBuffer is gone
+		
+				// stopped here. some error with count......?????????
 		else
 		{
 			int displacement = getKeyCount() * entSize + sizeof(int);
 			memcpy(buffer+displacement, &pid, sizeof(PageId));
-			memcpy(buffer+displacement+sizeof(PageId),&key,sizeof(int));
+			memcpy(buffer+displacement + sizeof(PageId), &key, sizeof(int));
 		}
 	}
 	free(tmpBuffer);//making sure the tmpBuffer is gone
@@ -458,7 +458,7 @@ RC BTNonLeafNode::insert(int key, PageId pid)
 RC BTNonLeafNode::insertAndSplit(int key, PageId pid, BTNonLeafNode& sibling, int& midKey)
 {
 	int entSize = sizeof(PageId) + sizeof(int);
-	int totSize = 1024 - sizeof(PageId);
+	int totSize = 1024 - sizeof(PageId) - sizeof(int);
 	int atSecHalf = 0;
 	//from slides, should only split when full
 	//sibling node must be empty
@@ -589,4 +589,28 @@ RC BTNonLeafNode::upNumKeys(int uKey)
 {
 	memcpy(buffer,&uKey,sizeof(int));
 	return 0;
+}
+
+// testing
+BTNonLeafNode::BTNonLeafNode()
+{
+	memset(buffer, 0, 1024);
+}
+
+void BTNonLeafNode::PrintNode()
+{
+	//the size of each entry should be sizeof(RecordId)+sizeof(int)
+	int entSize = sizeof(RecordId)+sizeof(int);
+	//total set of keys this can contain is 1024 - sizeof(pageId)
+	int totSize = 1024-sizeof(PageId);
+
+	int i;
+	int tmp;
+	PageId tmpPid;
+	for (i = sizeof(int); i < totSize; i+= entSize)
+	{	
+		memcpy(&tmpPid,buffer+i,sizeof(PageId));
+		memcpy(&tmp, buffer+i+sizeof(PageId),sizeof(int));
+		cout << tmpPid <<" " << tmp << endl;
+	}	
 }
