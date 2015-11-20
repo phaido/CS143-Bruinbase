@@ -360,7 +360,6 @@ int BTNonLeafNode::getKeyCount()
 	return cnt;
 }
 
-
 /*
  * Insert a (key, pid) pair to the node.
  * @param key[IN] the key to insert
