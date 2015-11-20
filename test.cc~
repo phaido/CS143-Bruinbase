@@ -1,0 +1,19 @@
+#include "Bruinbase.h"
+#include "SqlEngine.h"
+#include <cstdio>
+#include <iostream>
+#include "BTreeNode.h"
+
+using namespace std;
+
+int main()
+{
+  BTLeafNode x = BTLeafNode();
+  int count = x.getKeyCount();
+  RecordId y = (RecordId)5;
+  x.insert(12,y);
+
+  cout << count;
+
+  return 0;
+}
