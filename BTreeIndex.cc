@@ -45,7 +45,7 @@ RC BTreeIndex::open(const string& indexname, char mode)
   	//information into memory (basically copying it to BTreeIndex private
   	//member).
   	char* tmpBuffer = (char*)malloc(1024); //tmpBuffer to store page 0
-  	if(pr.read(0, tmpBuffer))
+  	if(pf.read(0, tmpBuffer))
   	{
   		free(tmpBuffer);
   		return RC_FILE_READ_FAILED;
@@ -149,7 +149,9 @@ RC BTreeIndex::rInsert(int &key, const RecordId& rid, int depth, int &parent_upd
 		PageId nextPid;
 		nlNode.read(pid, pf);
 		nlNode.locateChildPtr(key, nextPid);
-		rInsert(key, rid ++depth, parent_update,  nextPid, apid, bpid);
+		// changed this so it doesnt give compiler error. ++depth => depth++
+		depth++;
+		rInsert(key, rid, depth, parent_update,  nextPid, apid, bpid);
 		if(parent_update==1)
 		{
 			parent_update=0;
@@ -193,7 +195,7 @@ RC BTreeIndex::rInsert(int &key, const RecordId& rid, int depth, int &parent_upd
 			int sibpid = pf.endPid();
 			apid=pid;
 			bpid=sibpid;
-			lnode.setNextNodePtr(sibpid);//original node now points to sibling
+			lNode.setNextNodePtr(sibpid);//original node now points to sibling
 			if(siblNode.write(sibpid, pf))
 				return RC_FILE_WRITE_FAILED;
 		}

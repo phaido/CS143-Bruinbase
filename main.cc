@@ -221,12 +221,16 @@ int main()
 	// testing part C
 	BTreeIndex a;
   
+	a.open("asdf.txt", 'W');
+  
     RecordId rid;
 	rid.pid = 1;
 	rid.sid = 5;
   
 	a.insert(1,rid);
 	a.insert(2,rid);
+	
+	a.close();
   
   return 0;
 }
