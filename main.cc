@@ -32,6 +32,7 @@ int main()
 #include <cstdio>
 #include <iostream>
 #include "BTreeNode.h"
+#include "BTreeIndex.h"
 
 using namespace std;
 
@@ -133,7 +134,7 @@ int main()
 	z.insert(750, pid);
 	*/
 	
-	
+	/*
 	int i;
 	int error;
 	
@@ -215,6 +216,17 @@ int main()
 	
 	v.locateChildPtr(-1,childPid);
 	cout << "Child pid: " << childPid << endl;
+	*/
+  
+	// testing part C
+	BTreeIndex a;
+  
+    RecordId rid;
+	rid.pid = 1;
+	rid.sid = 5;
+  
+	a.insert(1,rid);
+	a.insert(2,rid);
   
   return 0;
 }

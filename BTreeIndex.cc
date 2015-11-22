@@ -9,6 +9,7 @@
  
 #include "BTreeIndex.h"
 #include "BTreeNode.h"
+#include <iostream>
 
 using namespace std;
 
@@ -18,6 +19,7 @@ using namespace std;
 BTreeIndex::BTreeIndex()
 {
     rootPid = -1;
+	treeHeight = -1;
 }
 
 /*
@@ -29,7 +31,12 @@ BTreeIndex::BTreeIndex()
  */
 RC BTreeIndex::open(const string& indexname, char mode)
 {
-    return 0;
+  RC   rc;
+
+  // open the page file
+  if ((rc = pf.open(indexname, mode)) < 0) return rc;
+
+  return 0;
 }
 
 /*
@@ -38,6 +45,8 @@ RC BTreeIndex::open(const string& indexname, char mode)
  */
 RC BTreeIndex::close()
 {
+	return pf.close();
+	
     return 0;
 }
 
@@ -49,6 +58,46 @@ RC BTreeIndex::close()
  */
 RC BTreeIndex::insert(int key, const RecordId& rid)
 {
+	int error;
+	
+	// if root doesn't exist, create a new root, of BTLeafNode
+	if (rootPid == -1) 
+	{
+		BTLeafNode x = BTLeafNode();
+		error = x.insert(key,rid);
+		cout << "insert error? " << error << endl;
+		rootPid = 0;
+		treeHeight = 1;
+		
+		/* 	Note to June. As of right now, I have no idea how the PageFile handles everything. 
+			I'll try my best to write code w/o all the PageFile stuff.
+		error = x.write(rootPid, pf);
+		cout << "write error? " << error << endl;
+		*/
+	}
+	
+	// root exists, but there's still only 1 node, which must be a BTLeafNode.
+	else if (treeHeight == 1)
+	{
+		BTLeafNode tmpNode = BTLeafNode();
+		error = tmpNode.read(rootPid, pf);
+		cout << "read error? " << error << endl;
+		
+		error = tmpNode.insert(key, rid);
+		
+		// node is full
+		if (error == -1010)
+		{
+			int siblingKey;
+			BTLeafNode tmpSiblingNode = BTLeafNode();
+			tmpNode.insertAndSplit(key, rid, tmpSiblingNode, siblingKey);
+			
+			BTNonLeafNode newRoot;
+			
+			//newRoot blah blah blah
+		}
+	}
+	
     return 0;
 }
 
