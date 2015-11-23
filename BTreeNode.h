@@ -191,8 +191,6 @@ class BTNonLeafNode {
 	
 	// testing purposes
 	BTNonLeafNode();
-	
-	void PrintNode();
 
   private:
    /**

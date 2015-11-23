@@ -65,6 +65,7 @@ RC BTreeIndex::close()
 {
 	//So before we close any file, we have to update page 0.
 	char* tmpBuffer = (char*)malloc(1024);
+	memset(tmpBuffer, 0, 1024);
 	memcpy(tmpBuffer, &rootPid, sizeof(PageId)); //first part contains rootPid
   	memcpy(tmpBuffer+sizeof(PageId), &treeHeight, sizeof(int)); //second contains Height
   	if(pf.write(0, tmpBuffer))
@@ -155,7 +156,7 @@ RC BTreeIndex::rInsert(int &key, const RecordId& rid, int depth, int &parent_upd
 		if(parent_update==1)
 		{
 			parent_update=0;
-			if(nlNode.insert(key, pid))
+			if(nlNode.insert(key, bpid))
 			{
 				//if we can't insert, then split.
 				//if we split then we must update parent node.

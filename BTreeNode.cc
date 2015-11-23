@@ -73,11 +73,6 @@ RC BTLeafNode::insert(int key, const RecordId& rid)
 		for(i=sizeof(int); (i<totSize)&&(!fnd); i+=entSize)
 		{
 			memcpy(&bufKey, (buffer+i+sizeof(RecordId)), sizeof(int)); //retrieving key from buffer
-			//cout << "bufKey: " << bufKey << endl;
-			//if((buffer+i)>key)  CAN'T DO THIS cause 1 byte > 4 byte
-			//	fnd=1;
-			
-			// fix. changed > to >=.
 			
 			if(bufKey>key)
 			{
@@ -623,30 +618,4 @@ RC BTNonLeafNode::upNumKeys(int uKey)
 }
 
 // testing
-BTNonLeafNode::BTNonLeafNode()
-{
-	memset(buffer, 0, 1024);
-}
-
-void BTNonLeafNode::PrintNode()
-{
-	//the size of each entry should be sizeof(RecordId)+sizeof(int)
-	int entSize = sizeof(PageId)+sizeof(int);
-	//total set of keys this can contain is 1024 - sizeof(pageId)
-	int totSize = 1024-sizeof(PageId) - sizeof(int);
-
-	// max keys for BTNonLeafNode should be 127
-	
-	int i;
-	int tmp;
-	PageId tmpPid;
-	//for (i = sizeof(int); i < totSize; i+= entSize)
-	for (i = sizeof(int); i < 700; i+= entSize)
-	{	
-		memcpy(&tmpPid,buffer+i,sizeof(PageId));
-		memcpy(&tmp, buffer+i+sizeof(PageId),sizeof(int));
-		cout << "pid: " << tmpPid <<". key: " << tmp << endl;
-	}	
-		memcpy(&tmpPid,buffer+i,sizeof(PageId));
-		cout << "final pid: " <<tmpPid << endl;
-}
+BTNonLeafNode::BTNonLeafNode(){memset(buffer, 0, 1024);}
