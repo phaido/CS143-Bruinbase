@@ -221,14 +221,44 @@ int main()
 	// testing part C
 	BTreeIndex a;
   
-	a.open("asdf.txt", 'W');
+	a.open("bubu5.txt", 'W');
   
     RecordId rid;
-	rid.pid = 1;
-	rid.sid = 5;
+	rid.pid = 43707;
+	rid.sid = 65518;
   
+	/*
+  	a.insert(99999,rid);
+
+	a.insert(14444,rid);
 	a.insert(1,rid);
 	a.insert(2,rid);
+	a.insert(3,rid);
+	int i;
+	for(i=10;i<12000;i++)
+		a.insert(i,rid);
+	
+	a.insert(99998,rid);
+	*/
+	
+	/*
+	for (int i = 0; i < 85; i++)
+		a.insert(i,rid);
+	*/
+	
+	IndexCursor c;
+	int readKey;
+	RecordId readRid;
+	
+	a.locate(1, c);
+	
+	cout << "Cursor's pid: " << c.pid << ". eid:" << c.eid << endl;
+	
+	while(a.readForward(c,readKey,readRid)==0)
+		cout << "Read key: " << readKey << ". rid.pid: " << readRid.pid << ". rid.sid: " << rid.sid << endl;
+	
+	a.readForward(c,readKey,readRid);
+	cout << "Read key: " << readKey << ". rid.pid: " << readRid.pid << ". rid.sid: " << rid.sid << endl;
 	
 	a.close();
   

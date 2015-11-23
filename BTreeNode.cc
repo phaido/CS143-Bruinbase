@@ -314,7 +314,7 @@ void BTLeafNode::PrintNode()
 	int nextPid;
 	
 	memcpy(&nextPid, buffer+1020, sizeof(int));
-	cout << "the next pid: " << nextPid << endl;
+	//cout << "the next pid: " << nextPid << endl;
 }
 
 /*

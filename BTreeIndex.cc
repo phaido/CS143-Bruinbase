@@ -65,6 +65,7 @@ RC BTreeIndex::close()
 {
 	//So before we close any file, we have to update page 0.
 	char* tmpBuffer = (char*)malloc(1024);
+	memset(tmpBuffer, 0, 1024);
 	memcpy(tmpBuffer, &rootPid, sizeof(PageId)); //first part contains rootPid
   	memcpy(tmpBuffer+sizeof(PageId), &treeHeight, sizeof(int)); //second contains Height
   	if(pf.write(0, tmpBuffer))
@@ -155,7 +156,7 @@ RC BTreeIndex::rInsert(int &key, const RecordId& rid, int depth, int &parent_upd
 		if(parent_update==1)
 		{
 			parent_update=0;
-			if(nlNode.insert(key, pid))
+			if(nlNode.insert(key, bpid))
 			{
 				//if we can't insert, then split.
 				//if we split then we must update parent node.
@@ -261,5 +262,56 @@ RC BTreeIndex::locate(int searchKey, IndexCursor& cursor)
  */
 RC BTreeIndex::readForward(IndexCursor& cursor, int& key, RecordId& rid)
 {
+	BTLeafNode leaf;
+	char* tmpBuffer = (char*)malloc(1024);
+	int tmp, tmpKey;
+	RecordId tmpRid;
+	
+	if(leaf.read(cursor.pid, pf))
+		return RC_FILE_READ_FAILED;
+	
+	//leaf.nodecopy(tmpBuffer);
+	
+	//cout << "Cursor's pid: " << cursor.pid << ". eid:" << cursor.eid << endl;
+	
+	//leaf.PrintNode();
+	
+	leaf.readEntry(cursor.eid,key,rid);
+	
+	/*
+	if (cursor.eid == 84)
+	{
+		cursor.pid = leaf.getNextNodePtr();
+		if(cursor.pid == 0)
+			return RC_INVALID_CURSOR;
+		cursor.eid = 0;
+	}
+	*/
+	
+	tmp = cursor.eid;
+	tmp++;
+	
+	if (cursor.eid == 83)
+	{
+		cursor.pid = leaf.getNextNodePtr();
+		if(cursor.pid == 0)
+			return RC_INVALID_CURSOR;
+		cursor.eid = 0;			
+	}
+	
+	else if	(leaf.readEntry(tmp,tmpKey,tmpRid))
+	{
+		if (tmpRid.pid == 0)
+		{
+			cursor.pid = leaf.getNextNodePtr();
+			if(cursor.pid == 0)
+				return RC_INVALID_CURSOR;
+			cursor.eid = 0;
+		}
+	}
+		
+	else
+		cursor.eid = tmp;
+	
     return 0;
 }
