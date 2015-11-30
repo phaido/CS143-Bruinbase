@@ -174,29 +174,7 @@ RC BTreeIndex::rInsert(int &key, const RecordId& rid, int depth, int &parent_upd
 			//cout << "hello? even here?" << endl;
 			
 			parent_update=0;
-			// gotta insert at leaf_node's pid...
-			
-			// STOPPED HERE. SOMEHOW GOTTA MAKE NEW ROOTS/LEAVES, ETC
-			// one time only special case....??
-			
-			/*
-			useless code
-			if (treeHeight == 1) 
-			{
-				cout << "I'm at special case!" << endl;
-				
-				BTNonLeafNode nlNodeRoot;
-				int newRootPid = pf.endPid();
-				if(nlNodeRoot.initializeRoot(apid, key, bpid))
-					return -1015;
-				if(nlNodeRoot.write(newRootPid, pf))
-					return RC_FILE_WRITE_FAILED;
-				treeHeight++; //extend height
-				rootPid=newRootPid; //update rootPid
-			}
-			*/
-			
-			//cout << "bpid: " << bpid << endl;
+
 			if(nlNode.insert(key, bpid))
 			{
 				//cout << "at least i'm here. " <<endl;
