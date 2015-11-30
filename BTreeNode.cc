@@ -177,18 +177,22 @@ RC BTLeafNode::insertAndSplit(int key, const RecordId& rid,
 		memcpy(tmpMainBuffer+sizeof(int), buffer+sizeof(int), noninsNKeys*entSize);
 		memcpy(tmpMainBuffer+totSize+sizeof(int),buffer+totSize+sizeof(int), sizeof(PageId));
 		memcpy(tmpSiblingBuffer+sizeof(int), buffer+((noninsNKeys*entSize)+sizeof(int)), insNKeys*entSize);
+		
+		// THIS IS UNNECESSARY, as found out while working on part C
 		// gotta do something about setting the sibling's PageId. right now setting same as the leftside
-		memcpy(tmpSiblingBuffer+totSize+sizeof(int), buffer+totSize+sizeof(int), sizeof(PageId));
+		//memcpy(tmpSiblingBuffer+totSize+sizeof(int), buffer+totSize+sizeof(int), sizeof(PageId));
 		//now insert to correct half
 		sibling.nodecopy(tmpSiblingBuffer);
 		//sibling.insert(key,rid);
 		nodecopy(tmpMainBuffer);
 		upNumKeys(noninsNKeys);
 		sibling.upNumKeys(insNKeys);
+		insert(key,rid);
 		sibling.insert(key,rid);
 		memcpy(&siblingKey, tmpSiblingBuffer+sizeof(int)+sizeof(RecordId), sizeof(int));
 	}
 	else //insertion to take place in first half
+	// NEVERMIND. CODE SOMEHOW GETS HERE SOMETIMES
 	{
 		//constructing halved buffers without insertion
 		memcpy(tmpMainBuffer+sizeof(int), buffer+sizeof(int), insNKeys*entSize);
@@ -200,6 +204,8 @@ RC BTLeafNode::insertAndSplit(int key, const RecordId& rid,
 		//insert(key,rid);
 		sibling.nodecopy(tmpSiblingBuffer);
 		upNumKeys(insNKeys);
+		//cout << "AM I DOING THIS RIGHT?" << endl;
+		//cout << "this is the key of the split: " << key << endl;
 		insert(key,rid);
 		sibling.upNumKeys(noninsNKeys);
 		memcpy(&siblingKey, tmpSiblingBuffer+sizeof(int)+sizeof(RecordId), sizeof(int));
@@ -474,6 +480,66 @@ RC BTNonLeafNode::insert(int key, PageId pid)
  */
 RC BTNonLeafNode::insertAndSplit(int key, PageId pid, BTNonLeafNode& sibling, int& midKey)
 {
+	int entSize = 8;
+	
+	char* tmpBiggerBuffer = (char*)malloc(1032);
+	char* tmpMainBuffer = (char*)malloc(1024);
+	char* tmpSiblingBuffer = (char*)malloc(1024);
+	memset(tmpBiggerBuffer, 0, 1032); 
+	memset(tmpMainBuffer, 0, 1024); //zeroing it out
+	memset(tmpSiblingBuffer, 0, 1024); //zeroing it out
+
+	int fnd = 0;
+	int bufKey;
+	int i;
+
+	for(i=sizeof(int) + sizeof(PageId); (i<1024)&&(!fnd); i+=entSize)
+	{
+		memcpy(&bufKey, (buffer+i), sizeof(int)); //retrieving key from buffer
+		if(bufKey>key)
+		{
+			fnd=1;
+			break;
+		}
+	}
+		
+	if (fnd == 1)
+	{
+		//i is the displacement where we want to insert
+		memcpy(tmpBiggerBuffer, buffer, i);
+		memcpy(tmpBiggerBuffer+i+sizeof(int) , &pid, sizeof(PageId));//inserting pid
+		memcpy(tmpBiggerBuffer+i,&key,sizeof(int));//then key
+		//now copying in the rest...
+		
+		//if (i + entSize < 1032)
+		{
+			cout << "does somethign ahppen here?" << endl;
+			memcpy(tmpBiggerBuffer+i+entSize ,buffer+i,1032-i-entSize);
+		}
+	}
+
+	else
+	{
+		cout << "THIS is what happens huh?" << endl;
+		memcpy(tmpBiggerBuffer, buffer, 1024);
+		int displacement = getKeyCount() * entSize + sizeof(int)+sizeof(PageId);
+		memcpy(tmpBiggerBuffer+displacement+sizeof(int), &pid, sizeof(PageId));
+		memcpy(tmpBiggerBuffer+displacement, &key, sizeof(int));
+	}
+	
+	//setting the count of original to 64 and sibling buffer to 63, for that's what it'll be
+	memset(tmpSiblingBuffer, 63, 1);
+	memset(tmpMainBuffer, 64, 1);
+	
+	memcpy(&midKey, tmpBiggerBuffer+8+512, sizeof(int));
+	cout << "This is midkey: " << midKey << endl;
+	memcpy(tmpMainBuffer+4,tmpBiggerBuffer+4,516);
+	memcpy(tmpSiblingBuffer+4,tmpBiggerBuffer+524, 508);
+	
+	sibling.nodecopy(tmpSiblingBuffer);
+	nodecopy(tmpMainBuffer);
+	
+	/*
 	int entSize = sizeof(PageId) + sizeof(int);
 	int totSize = 1024 - sizeof(PageId) - sizeof(int);
 	int atSecHalf = 0;
@@ -498,7 +564,7 @@ RC BTNonLeafNode::insertAndSplit(int key, PageId pid, BTNonLeafNode& sibling, in
 			return RC_INVALID_ATTRIBUTE;
 		else if(bufKey>key)
 		{
-			atSecHalf = (i>=(entSize*noninsNKeys+sizeof(int)-sizeof(PageId)) ? 1 : 0);
+			atSecHalf = (i>=(entSize*64)+9 ? 1 : 0);
 			break; //to insure i doesn't get incremented...
 		}
 	}
@@ -507,11 +573,13 @@ RC BTNonLeafNode::insertAndSplit(int key, PageId pid, BTNonLeafNode& sibling, in
 	memset(tmpMainBuffer, 0, 1024); //zeroing it out
 	memset(tmpSiblingBuffer, 0, 1024); //zeroing it out
 
+	cout << "AM I DOING THIS RIGHT NOW?" << endl;		
+	
 	//int tmpNK;
 		if(atSecHalf==1) //insertion should take place in second half
 	{
 		//constructing halved buffers without insertion
-		memcpy(tmpMainBuffer+sizeof(int), buffer+sizeof(int), noninsNKeys*entSize+sizeof(PageId));
+		memcpy(tmpMainBuffer+sizeof(int), buffer+sizeof(int), 64*entSize+8);
 		memcpy(tmpSiblingBuffer+sizeof(int)+sizeof(PageId), buffer+((noninsNKeys*entSize)+sizeof(int)+sizeof(PageId)), insNKeys*entSize);
 		// setting the left most pid of the sibling
 		memcpy(tmpSiblingBuffer+sizeof(int), buffer+noninsNKeys*entSize+sizeof(int), sizeof(PageId));
@@ -523,6 +591,8 @@ RC BTNonLeafNode::insertAndSplit(int key, PageId pid, BTNonLeafNode& sibling, in
 		sibling.upNumKeys(insNKeys);
 		sibling.insert(key,pid);
 		memcpy(&midKey, tmpSiblingBuffer+sizeof(int)+sizeof(PageId), sizeof(int));
+		
+		cout << "I was here" << endl;
 	}
 	
 	else //insertion to take place in first half
@@ -539,6 +609,8 @@ RC BTNonLeafNode::insertAndSplit(int key, PageId pid, BTNonLeafNode& sibling, in
 		insert(key,pid);
 		sibling.upNumKeys(noninsNKeys);
 		memcpy(&midKey, tmpSiblingBuffer+sizeof(int)+sizeof(PageId), sizeof(int));
+		
+		cout << "actually I was here" << endl;
 	}
 	
 	int count = sibling.getKeyCount();	
@@ -549,6 +621,9 @@ RC BTNonLeafNode::insertAndSplit(int key, PageId pid, BTNonLeafNode& sibling, in
 	
 	//memcpy(sibling.buffer, tmpSiblingBuffer, 1024);
 	//sibling.nodecopy(tmpSiblingBuffer);
+	
+	*/
+	free(tmpBiggerBuffer);
 	free(tmpMainBuffer);  //making sure the tmpBuffer is gone
 	free(tmpSiblingBuffer);
 	return 0;

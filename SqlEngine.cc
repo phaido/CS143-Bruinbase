@@ -15,6 +15,7 @@
 #include <string>
 #include "Bruinbase.h"
 #include "SqlEngine.h"
+#include "BTreeIndex.h"
 
 using namespace std;
 
@@ -37,140 +38,163 @@ RC SqlEngine::run(FILE* commandline)
 
 RC SqlEngine::select(int attr, const string& table, const vector<SelCond>& cond)
 {
-  RecordFile rf;   // RecordFile containing the table
-  RecordId   rid;  // record cursor for table scanning
+	RecordFile rf;   // RecordFile containing the table
+	RecordId   rid;  // record cursor for table scanning
 
-  RC     rc;
-  int    key;     
-  string value;
-  int    count;
-  int    diff;
+	RC     rc;
+	int    key;     
+	string value;
+	int    count;
+	int    diff;
+	bool   indexExists = 0;
+	
+	BTreeIndex BTindex;
+	
+	// BTreeIndex stuff!
+	rc = BTindex.open(table + ".idx", 'w');
+	if (rc != 0){
+			cout << "error when opening IndexFile " << table << ".idx .\n";
+			return RC_FILE_OPEN_FAILED;
+	}
+	else
+		indexExists = 1;
+	
+	// open the table file
+	if ((rc = rf.open(table + ".tbl", 'r')) < 0) {
+		fprintf(stderr, "Error: table %s does not exist\n", table.c_str());
+		return rc;
+	}
 
-  // open the table file
-  if ((rc = rf.open(table + ".tbl", 'r')) < 0) {
-    fprintf(stderr, "Error: table %s does not exist\n", table.c_str());
-    return rc;
-  }
+	
+	
+	// scan the table file from the beginning
+	rid.pid = rid.sid = 0;
+	count = 0;
+	while (rid < rf.endRid()) {
+		// read the tuple
+		if ((rc = rf.read(rid, key, value)) < 0) {
+			fprintf(stderr, "Error: while reading a tuple from table %s\n", table.c_str());
+			goto exit_select;
+		}
 
-  // scan the table file from the beginning
-  rid.pid = rid.sid = 0;
-  count = 0;
-  while (rid < rf.endRid()) {
-    // read the tuple
-    if ((rc = rf.read(rid, key, value)) < 0) {
-      fprintf(stderr, "Error: while reading a tuple from table %s\n", table.c_str());
-      goto exit_select;
-    }
+		// check the conditions on the tuple
+		for (unsigned i = 0; i < cond.size(); i++) {
+			// compute the difference between the tuple value and the condition value
+			switch (cond[i].attr) {
+				case 1:
+				diff = key - atoi(cond[i].value);
+				break;
+				case 2:
+				diff = strcmp(value.c_str(), cond[i].value);
+				break;
+			}
 
-    // check the conditions on the tuple
-    for (unsigned i = 0; i < cond.size(); i++) {
-      // compute the difference between the tuple value and the condition value
-      switch (cond[i].attr) {
-      case 1:
-	diff = key - atoi(cond[i].value);
-	break;
-      case 2:
-	diff = strcmp(value.c_str(), cond[i].value);
-	break;
-      }
+			// skip the tuple if any condition is not met
+			switch (cond[i].comp) {
+				case SelCond::EQ:
+					if (diff != 0) goto next_tuple;
+						break;
+				case SelCond::NE:
+					if (diff == 0) goto next_tuple;
+						break;
+				case SelCond::GT:
+					if (diff <= 0) goto next_tuple;
+						break;
+				case SelCond::LT:
+					if (diff >= 0) goto next_tuple;
+						break;
+				case SelCond::GE:
+					if (diff < 0) goto next_tuple;
+						break;
+				case SelCond::LE:
+					if (diff > 0) goto next_tuple;
+						break;
+			}
+		}
 
-      // skip the tuple if any condition is not met
-      switch (cond[i].comp) {
-      case SelCond::EQ:
-	if (diff != 0) goto next_tuple;
-	break;
-      case SelCond::NE:
-	if (diff == 0) goto next_tuple;
-	break;
-      case SelCond::GT:
-	if (diff <= 0) goto next_tuple;
-	break;
-      case SelCond::LT:
-	if (diff >= 0) goto next_tuple;
-	break;
-      case SelCond::GE:
-	if (diff < 0) goto next_tuple;
-	break;
-      case SelCond::LE:
-	if (diff > 0) goto next_tuple;
-	break;
-      }
-    }
+		// the condition is met for the tuple. 
+		// increase matching tuple counter
+		count++;
 
-    // the condition is met for the tuple. 
-    // increase matching tuple counter
-    count++;
+		// print the tuple 
+		switch (attr) {
+			case 1:  // SELECT key
+				fprintf(stdout, "%d\n", key);
+				break;
+			case 2:  // SELECT value
+				fprintf(stdout, "%s\n", value.c_str());
+				break;
+			case 3:  // SELECT *
+				fprintf(stdout, "%d '%s'\n", key, value.c_str());
+				break;
+		}
 
-    // print the tuple 
-    switch (attr) {
-    case 1:  // SELECT key
-      fprintf(stdout, "%d\n", key);
-      break;
-    case 2:  // SELECT value
-      fprintf(stdout, "%s\n", value.c_str());
-      break;
-    case 3:  // SELECT *
-      fprintf(stdout, "%d '%s'\n", key, value.c_str());
-      break;
-    }
+		// move to the next tuple
+		next_tuple:
+		++rid;
+	}
 
-    // move to the next tuple
-    next_tuple:
-    ++rid;
-  }
+	// print matching tuple count if "select count(*)"
+	if (attr == 4) {
+	fprintf(stdout, "%d\n", count);
+	}
+	rc = 0;
 
-  // print matching tuple count if "select count(*)"
-  if (attr == 4) {
-    fprintf(stdout, "%d\n", count);
-  }
-  rc = 0;
-
-  // close the table file and return
-  exit_select:
-  rf.close();
-  return rc;
+	// close the table file and return
+	exit_select:
+	rf.close();
+	return rc;
 }
 
 RC SqlEngine::load(const string& table, const string& loadfile, bool index)
 {
-  /* your code here */
+	/* your code here */
 
-  // Junkyum Kim
-  // Part 2A
-  // assuming index is always false
+	// Junkyum Kim
+	// part 2D now. adding the index
 
-  fstream fs;
-  RecordFile rf;
+	fstream fs;
+	RecordFile rf;
+	BTreeIndex BTindex;
 
-  RecordId rid;
-  int tempKey;
-  string tempLine, tempValue;
-  int errorCode = 1; // error value to return in case of an error. For now set to 1
-
-  if (rf.open(table + ".tbl",'w') != 0)
-    {
-      cout << "error when opening RecordFile " << table << ".tbl .\n";
-      return errorCode;
-    }
-
-  fs.open(loadfile.c_str(), fstream::in);
-
-  if (!fs.is_open())
-    {
-      cout << "load file " << loadfile << " does not exist.\n";
-      return errorCode;
-    }
-
-  else 
-    {
-      while (getline(fs,tempLine))
-	{
-	  parseLoadLine(tempLine, tempKey, tempValue);
-	  rf.append(tempKey, tempValue, rid);
+	RecordId rid;
+	int tempKey;
+	string tempLine, tempValue;
+	int errorCode = -1015; // error value to return in case of an error. For now set to -1015
+	
+	if (index){
+		if (BTindex.open(table + ".idx", 'w') != 0){
+			cout << "error when opening IndexFile " << table << ".idx .\n";
+			return RC_FILE_OPEN_FAILED;
+		}
 	}
-    }
+	
+	if (rf.open(table + ".tbl",'w') != 0){
+		cout << "error when opening RecordFile " << table << ".tbl .\n";
+		return RC_FILE_OPEN_FAILED;
+	}
+		
+	fs.open(loadfile.c_str(), fstream::in);
 
-  return 0;
+	if (!fs.is_open()){
+		cout << "load file " << loadfile << " does not exist.\n";
+		return errorCode;
+	}
+
+	else {
+		while (getline(fs,tempLine)){
+			parseLoadLine(tempLine, tempKey, tempValue);
+			rf.append(tempKey, tempValue, rid);
+			if (index)
+				BTindex.insert(tempKey, rid);
+		}
+	}
+	
+	if (index){
+		BTindex.close();
+	}
+	
+	return 0;
 }
 
 RC SqlEngine::parseLoadLine(const string& line, int& key, string& value)

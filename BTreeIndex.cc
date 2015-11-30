@@ -124,27 +124,40 @@ RC BTreeIndex::insert(int key, const RecordId& rid)
 			return -1015;
 		if(parent_update==1)//case where root gets changed
 		{
+			cout << "I'm making a new root!" << endl;
+			
 			//when root gets extended it is always nonleaf
 			BTNonLeafNode nlNode;
 			int newRootPid = pf.endPid();
 			if(nlNode.initializeRoot(apid, tmpkey, bpid))
+			// trick to make the root point to the right node..?
+			//int trick = bpid + treeHeight-1;
+			//if(nlNode.initializeRoot(apid, tmpkey, trick))
 				return -1015;
 			if(nlNode.write(newRootPid, pf))
 				return RC_FILE_WRITE_FAILED;
 			treeHeight++; //extend height
 			rootPid=newRootPid; //update rootPid
+			
+			cout << "New rootPid: " << rootPid << endl;
 		}
 	}
 	
     return 0;
 }
-
+// not complete. still has some bugs. 
+// but the bug is so hard to find...
+// so both the insert and rInsert, the recursive insert
+// is far from being finished.
 RC BTreeIndex::rInsert(int &key, const RecordId& rid, int depth, int &parent_update,
 					   PageId pid, PageId &apid, PageId &bpid)
-{
+{	
 	if(depth<treeHeight)//so on some nonleaf node, first traverse recursively and check
 		                //if parent update is necessary
 	{
+			//cout << "COMON" <<endl;
+
+		
 		BTNonLeafNode nlNode;
 		BTNonLeafNode sibnlNode;
 		PageId nextPid;
@@ -152,27 +165,63 @@ RC BTreeIndex::rInsert(int &key, const RecordId& rid, int depth, int &parent_upd
 		nlNode.locateChildPtr(key, nextPid);
 		// changed this so it doesnt give compiler error. ++depth => depth++
 		depth++;
-		rInsert(key, rid, depth, parent_update,  nextPid, apid, bpid);
+		rInsert(key, rid, depth, parent_update, nextPid, apid, bpid);
+		
+		//cout << "WHAT?" << endl;
+		
 		if(parent_update==1)
 		{
+			//cout << "hello? even here?" << endl;
+			
 			parent_update=0;
+			// gotta insert at leaf_node's pid...
+			
+			// STOPPED HERE. SOMEHOW GOTTA MAKE NEW ROOTS/LEAVES, ETC
+			// one time only special case....??
+			
+			/*
+			useless code
+			if (treeHeight == 1) 
+			{
+				cout << "I'm at special case!" << endl;
+				
+				BTNonLeafNode nlNodeRoot;
+				int newRootPid = pf.endPid();
+				if(nlNodeRoot.initializeRoot(apid, key, bpid))
+					return -1015;
+				if(nlNodeRoot.write(newRootPid, pf))
+					return RC_FILE_WRITE_FAILED;
+				treeHeight++; //extend height
+				rootPid=newRootPid; //update rootPid
+			}
+			*/
+			
+			//cout << "bpid: " << bpid << endl;
 			if(nlNode.insert(key, bpid))
 			{
+				//cout << "at least i'm here. " <<endl;
+				
 				//if we can't insert, then split.
 				//if we split then we must update parent node.
 				int tmpKey;
-				if(nlNode.insertAndSplit(key, pid, sibnlNode, tmpKey))
+				if(nlNode.insertAndSplit(key, bpid, sibnlNode, tmpKey))
+				{
+					cout << "I get error here!!" << endl; // which should never happen
 					return -1015;
+				}
 				key=tmpKey;
 				parent_update=1;
 				int sibpid = pf.endPid();
 				apid=pid;
 				bpid=sibpid;
+				
+				cout << "This is within Non Leaf Node Insert & Split" << endl;
+				cout << "apid: " << apid << endl;
+				cout << "bpid: " << bpid << endl;
 				if(sibnlNode.write(sibpid, pf))
 					return RC_FILE_WRITE_FAILED;
 
 			}
-
 		}
 		if(nlNode.write(pid, pf))
 			return RC_FILE_WRITE_FAILED; 
@@ -262,6 +311,8 @@ RC BTreeIndex::locate(int searchKey, IndexCursor& cursor)
  */
 RC BTreeIndex::readForward(IndexCursor& cursor, int& key, RecordId& rid)
 {
+	// not perfect. I believe there's still error with reading element when you have to read the next node
+	
 	BTLeafNode leaf;
 	char* tmpBuffer = (char*)malloc(1024);
 	int tmp, tmpKey;
@@ -278,40 +329,57 @@ RC BTreeIndex::readForward(IndexCursor& cursor, int& key, RecordId& rid)
 	
 	leaf.readEntry(cursor.eid,key,rid);
 	
-	/*
 	if (cursor.eid == 84)
 	{
 		cursor.pid = leaf.getNextNodePtr();
 		if(cursor.pid == 0)
 			return RC_INVALID_CURSOR;
 		cursor.eid = 0;
+		
+		if(leaf.read(cursor.pid, pf))
+			return RC_FILE_READ_FAILED;
+
+		leaf.readEntry(cursor.eid,key,rid);
 	}
-	*/
 	
-	tmp = cursor.eid;
-	tmp++;
-	
-	if (cursor.eid == 83)
+	if (rid.pid == 0)
 	{
 		cursor.pid = leaf.getNextNodePtr();
 		if(cursor.pid == 0)
 			return RC_INVALID_CURSOR;
-		cursor.eid = 0;			
+		cursor.eid = 0;
+
+		if(leaf.read(cursor.pid, pf))
+			return RC_FILE_READ_FAILED;
+
+		leaf.readEntry(cursor.eid,key,rid);
 	}
 	
-	else if	(leaf.readEntry(tmp,tmpKey,tmpRid))
+	cursor.eid++;
+	
+	/*
+	tmp = cursor.eid;
+	tmp++;
+	leaf.readEntry(tmp,tmpKey,tmpRid);
+	
+	if (tmpRid.pid == 0 )
 	{
-		if (tmpRid.pid == 0)
-		{
-			cursor.pid = leaf.getNextNodePtr();
-			if(cursor.pid == 0)
-				return RC_INVALID_CURSOR;
-			cursor.eid = 0;
-		}
+		cursor.pid = leaf.getNextNodePtr();
+		if(cursor.pid == 0)
+			return RC_INVALID_CURSOR;
+		cursor.eid = 0;
 	}
-		
+	
+	else
+	{
+		leaf.readEntry(cursor.eid,key,rid);
+		cursor.eid++;
+	}
+	*/
+	/*
 	else
 		cursor.eid = tmp;
+	*/
 	
     return 0;
 }
